@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">HookRilListner</string>
+    <string name="action_settings">Settings</string>
+    <string name="action_connect_button">RIL connect</string>
+</resources>
