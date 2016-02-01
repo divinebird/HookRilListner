@@ -4,7 +4,10 @@ import android.app.Service;
 import android.content.Intent;
 import android.net.LocalSocket;
 import android.net.LocalSocketAddress;
+import android.os.Binder;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Message;
 import android.os.Parcel;
 import android.util.Log;
 
@@ -12,17 +15,62 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.channels.Channels;
+import java.util.ArrayList;
 
 public class Listner extends Service {
 
     static final private String HOOK_RIL_SERVICE_LOG_TAG = Listner.class.getName();
 
+    private ArrayList<RilCommand> commands = new ArrayList<>();
+    private static final int COMMAND_ARRAY_SIZE = 40;
+    Thread worker;
+    boolean mStoped = false;
+
+    private final IBinder mBinder = new LocalBinder();
+
     public Listner() {
     }
 
     @Override
+    public void onCreate() {
+        super.onCreate();
+        worker = new Thread(new CommandsReceiver());
+        worker.start();
+    }
+
+    private Handler mHandler;
+    public void setHandler(Handler hnd) {
+        mHandler = hnd;
+    }
+
+    private void sendCommands() {
+        if(mHandler == null)
+            return;
+
+        for(RilCommand command : commands) {
+            Message msg = mHandler.obtainMessage();
+            msg.obj = command;
+            mHandler.sendMessage(msg);
+        }
+        commands.clear();
+    }
+
+    @Override
+    public void onDestroy() {
+        mStoped = true;
+        worker.interrupt();
+        super.onDestroy();
+    }
+
+    @Override
     public IBinder onBind(Intent intent) {
-        throw new UnsupportedOperationException("Not yet implemented");
+        return mBinder;
+    }
+
+    @Override
+    public boolean onUnbind(Intent intent) {
+        return super.onUnbind(intent);
     }
 
     class CommandHeader {
@@ -35,17 +83,8 @@ public class Listner extends Service {
     class CommandsReceiver implements Runnable {
         static final private String SOCK_PATH = "hookril_tranlator";
         static final private int RIL_MAX_COMMAND_BYTES = 8 * 1024;
-        static final private int RESPONSE_SOLICITED = 0;
-        static final private int RESPONSE_UNSOLICITED = 1;
-
-        static final private byte RIL_REQUEST_FUNC = 1;
-        static final private byte RIL_ON_REQUEST_COMPLETE = 2;
-        static final private byte RIL_ON_UNSOLICITED_RESPONSE = 3;
-        static final private byte RIL_RADIO_STATER_EQUEST = 4;
-
 
         byte[] buffer;
-        boolean mStoped = false;
         static final int SOCKET_OPEN_RETRY_MILLIS = 1000;
         ByteBuffer byteBuffer;
 
@@ -93,9 +132,9 @@ public class Listner extends Service {
                     retryCount = 0;
 
                     try {
-                        InputStream is = s.getInputStream();
+                        InputStream is = Channels.newInputStream(Channels.newChannel(s.getInputStream()));
 
-                        for (;;) {
+                        while(!mStoped) {
                             Parcel p;
 
                             CommandHeader header = readHeader(is);
@@ -112,7 +151,12 @@ public class Listner extends Service {
 
                             Log.v(HOOK_RIL_SERVICE_LOG_TAG, "Read packet: " + header.length + " bytes");
 
-                            parseCommand(p);
+                            RilCommand command = RilCommand.parseCommandFromParcel(header.functionId, header.command, header.tocken, p);
+                            if(command != null) {
+                                commands.add(command);
+                                while(commands.size() > COMMAND_ARRAY_SIZE)
+                                    commands.remove(0);
+                            }
                             p.recycle();
                         }
                     } catch (java.io.IOException ex) {
@@ -131,6 +175,7 @@ public class Listner extends Service {
             catch (Throwable tr) {
                 Log.e(HOOK_RIL_SERVICE_LOG_TAG, "Uncaught exception", tr);
             }
+            worker = null;
         }
 
         private void parseCommand(CommandHeader header, Parcel p) {
@@ -138,23 +183,24 @@ public class Listner extends Service {
         }
 
         private CommandHeader readHeader(InputStream is) throws IOException {
-            int readlength = is.read(buffer, 0, 17);
+            int readlength = is.read(buffer, 0, 13);
             if(readlength != 13)
                 throw new IOException();
 
             CommandHeader commandHeader = new CommandHeader();
-            byteBuffer.put(buffer);
+            byteBuffer.put(buffer, 0, readlength);
+            byteBuffer.position(0);
             commandHeader.functionId = byteBuffer.get();
             commandHeader.command = byteBuffer.getInt();
             commandHeader.tocken = byteBuffer.getInt();
             commandHeader.length = byteBuffer.getInt();
             return commandHeader;
         }
-
-        private int readRilMessage(InputStream is, byte[] buffer) {
-            return 0;
-        }
     }
 
-    
+    public class LocalBinder extends Binder {
+        Listner getService() {
+            return Listner.this;
+        }
+    }
 }
