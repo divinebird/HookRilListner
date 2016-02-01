@@ -61,7 +61,7 @@ public class MainActivity extends AppCompatActivity {
                     Log.e(TAG, "Copying error", e);
                 }
             }
-            List<String> res = Shell.SU.run("getprop rild.libpath");
+                List<String> res = Shell.SU.run("getprop rild.libpath");
             if(!res.get(0).contains("libhookril.so")) {
                 Shell.SU.run(new String[] {"setprop rild.libpath \"/system/lib/libhookril.so\"",
                         "setprop rild.libpath_orig \"" + res.get(0) + "\"",
@@ -126,6 +126,7 @@ public class MainActivity extends AppCompatActivity {
         if (Shell.SU.available()) {
             Shell.SU.run("mount -o rw,remount /system");
             Shell.SU.run("cp " + outLibPath + " /system/lib/");
+            Shell.SU.run("chmod 644 /system/lib/libhookril.so");
         }
     }
 }

@@ -1,11 +1,14 @@
 package ru.avilov.hookrillistner;
 
 import android.os.Parcel;
+import android.util.Log;
 
 /**
  * Created by vasily on 31.01.16.
  */
 public class RilCommand {
+    private static final String TAG = RilCommand.class.getName();
+
     static final private int RESPONSE_SOLICITED = 0;
     static final private int RESPONSE_UNSOLICITED = 1;
 
@@ -25,6 +28,8 @@ public class RilCommand {
         ret.functionId = functionId;
         ret.command = command;
         ret.tocken = tocken;
+
+        Log.d(TAG, "functionId: " + functionId + ", command: " + command + ", tocken: " + tocken);
         return ret;
     }
 }
