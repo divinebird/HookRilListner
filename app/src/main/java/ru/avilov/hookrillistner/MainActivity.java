@@ -15,14 +15,19 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.widget.Toast;
 
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.List;
+
+import eu.chainfire.libsuperuser.Shell;
 
 public class MainActivity extends AppCompatActivity {
     private Listner listner = null;
+    private boolean isInstalled = false;
 
     private final static String TAG = MainActivity.class.getName();
 
@@ -43,12 +48,28 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        startService(new Intent(this, Listner.class));
-        try {
-            installLib(false);
-        } catch (IOException e) {
-            Log.e(TAG, "Copying error", e);
+
+        File file = new File("/system/lib/libhookril.so");
+        if(file.exists())
+            isInstalled = true;
+
+        if (Shell.SU.available()) {
+            if(!isInstalled) {
+                try {
+                    installLib(false);
+                } catch (IOException e) {
+                    Log.e(TAG, "Copying error", e);
+                }
+            }
+            List<String> res = Shell.SU.run("getprop rild.libpath");
+            if(!res.get(0).contains("libhookril.so")) {
+                Shell.SU.run(new String[] {"setprop rild.libpath /system/lib/libhookril.so",
+                        "setprop rild.libpath_orig " + res.get(0),
+                        "killall rild"
+                });
+            }
         }
+        startService(new Intent(this, Listner.class));
     }
 
     @Override
@@ -89,9 +110,9 @@ public class MainActivity extends AppCompatActivity {
     void installLib(boolean isMTK) throws IOException {
         String type = isMTK ? "mtk" : "clear";
         String libname = "libhookril.so";
-        
 
-        OutputStream myOutput = new FileOutputStream("/data/local/tmp/" + libname);
+        String outLibPath = getApplicationInfo().dataDir + "/" + libname;
+        OutputStream myOutput = new FileOutputStream(outLibPath);
         byte[] buffer = new byte[1024];
         int length;
         InputStream myInput = getAssets().open(type + "/" + libname);
@@ -101,5 +122,12 @@ public class MainActivity extends AppCompatActivity {
         myInput.close();
         myOutput.flush();
         myOutput.close();
+
+        if (Shell.SU.available()) {
+            Shell.SU.run(new String[] {
+                    "mount -o rw,remount",
+                    "cp " + outLibPath + " /system/lib"
+            });
+        }
     }
 }
