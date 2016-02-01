@@ -63,8 +63,8 @@ public class MainActivity extends AppCompatActivity {
             }
             List<String> res = Shell.SU.run("getprop rild.libpath");
             if(!res.get(0).contains("libhookril.so")) {
-                Shell.SU.run(new String[] {"setprop rild.libpath /system/lib/libhookril.so",
-                        "setprop rild.libpath_orig " + res.get(0),
+                Shell.SU.run(new String[] {"setprop rild.libpath \"/system/lib/libhookril.so\"",
+                        "setprop rild.libpath_orig \"" + res.get(0) + "\"",
                         "killall rild"
                 });
             }
