@@ -124,10 +124,8 @@ public class MainActivity extends AppCompatActivity {
         myOutput.close();
 
         if (Shell.SU.available()) {
-            Shell.SU.run(new String[] {
-                    "mount -o rw,remount",
-                    "cp " + outLibPath + " /system/lib"
-            });
+            Shell.SU.run("mount -o rw,remount /system");
+            Shell.SU.run("cp " + outLibPath + " /system/lib/");
         }
     }
 }
