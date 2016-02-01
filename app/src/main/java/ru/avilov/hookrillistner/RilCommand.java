@@ -7,6 +7,9 @@ import android.util.Log;
  * Created by vasily on 31.01.16.
  */
 public class RilCommand {
+
+    private final static int RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED = 1001;
+
     private static final String TAG = RilCommand.class.getName();
 
     static final private int RESPONSE_SOLICITED = 0;
@@ -28,8 +31,18 @@ public class RilCommand {
         ret.functionId = functionId;
         ret.command = command;
         ret.tocken = tocken;
+        ret.commandObject = null;
 
         Log.d(TAG, "functionId: " + functionId + ", command: " + command + ", tocken: " + tocken);
+
+        int response = p.readInt();
+
+        switch (response) {
+            case RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED:
+                Log.d(TAG, "Call state changed");
+                break;
+        }
+
         return ret;
     }
 }
