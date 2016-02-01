@@ -132,7 +132,7 @@ public class Listner extends Service {
                     retryCount = 0;
 
                     try {
-                        InputStream is = Channels.newInputStream(Channels.newChannel(s.getInputStream()));
+                        InputStream is = s.getInputStream(); //Channels.newInputStream(Channels.newChannel(
 
                         while(!mStoped) {
                             Parcel p;

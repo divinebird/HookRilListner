@@ -9,6 +9,8 @@ import android.util.Log;
 public class RilCommand {
     private static final String TAG = RilCommand.class.getName();
 
+    static final int RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED = 1000;
+
     static final private int RESPONSE_SOLICITED = 0;
     static final private int RESPONSE_UNSOLICITED = 1;
 
@@ -29,7 +31,17 @@ public class RilCommand {
         ret.command = command;
         ret.tocken = tocken;
 
+        int respose = p.readInt();
         Log.d(TAG, "functionId: " + functionId + ", command: " + command + ", tocken: " + tocken);
+
+        switch (respose) {
+            case RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED:
+                RadioState newState = RadioState.getRadioState(p.readInt());
+                ret.commandObject = newState;
+                Log.d(TAG, "Radio state changed to: " + newState);
+                break;
+        }
+
         return ret;
     }
 }
