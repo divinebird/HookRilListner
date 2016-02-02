@@ -3,13 +3,12 @@ package ru.avilov.hookrillistner;
 import android.os.Parcel;
 import android.util.Log;
 
-/**
- * Created by vasily on 31.01.16.
- */
 public class RilCommand {
-    private static final String TAG = RilCommand.class.getName();
 
-    static final int RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED = 1000;
+    private final static int RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED = 1000;
+    private final static int RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED = 1001;
+
+    private static final String TAG = RilCommand.class.getName();
 
     static final private int RESPONSE_SOLICITED = 0;
     static final private int RESPONSE_UNSOLICITED = 1;
@@ -30,6 +29,7 @@ public class RilCommand {
         ret.functionId = functionId;
         ret.command = command;
         ret.tocken = tocken;
+        ret.commandObject = null;
 
         int respose = p.readInt();
         Log.d(TAG, "functionId: " + functionId + ", command: " + command + ", tocken: " + tocken);
@@ -39,6 +39,9 @@ public class RilCommand {
                 RadioState newState = RadioState.getRadioState(p.readInt());
                 ret.commandObject = newState;
                 Log.d(TAG, "Radio state changed to: " + newState);
+                break;
+            case RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED:
+                Log.d(TAG, "Call state changed");
                 break;
         }
 
