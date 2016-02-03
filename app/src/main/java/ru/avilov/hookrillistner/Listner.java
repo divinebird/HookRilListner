@@ -16,6 +16,7 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.Channels;
+import java.nio.channels.ReadableByteChannel;
 import java.util.ArrayList;
 
 public class Listner extends Service {
@@ -42,10 +43,12 @@ public class Listner extends Service {
     private Handler mHandler;
     public void setHandler(Handler hnd) {
         mHandler = hnd;
+        if(mHandler != null)
+            sendCommands();
     }
 
     private void sendCommands() {
-        if(mHandler == null)
+        if (mHandler == null) //TODO: May be sync errors
             return;
 
         for(RilCommand command : commands) {
@@ -84,15 +87,13 @@ public class Listner extends Service {
         static final private String SOCK_PATH = "hookril_tranlator";
         static final private int RIL_MAX_COMMAND_BYTES = 8 * 1024;
 
-        byte[] buffer;
         static final int SOCKET_OPEN_RETRY_MILLIS = 1000;
         ByteBuffer byteBuffer;
 
         @Override
         public void run() {
-            buffer = new byte[RIL_MAX_COMMAND_BYTES];
             int retryCount = 0;
-            byteBuffer = ByteBuffer.allocate(32);
+            byteBuffer = ByteBuffer.allocate(RIL_MAX_COMMAND_BYTES * 2);
             byteBuffer.order(ByteOrder.nativeOrder());
 
             try {
@@ -132,32 +133,35 @@ public class Listner extends Service {
                     retryCount = 0;
 
                     try {
-                        InputStream is = s.getInputStream(); //Channels.newInputStream(Channels.newChannel(
+                        ReadableByteChannel readableChannel = Channels.newChannel(s.getInputStream());
 
                         while(!mStoped) {
-                            Parcel p;
-
-                            CommandHeader header = readHeader(is);
-                            if (header.length < 0) {
-                                break;
+                            CommandHeader header = readHeader(readableChannel);
+                            if (header == null || header.length < 0) {
+                                Log.e(HOOK_RIL_SERVICE_LOG_TAG, "The header or header.length is wrong");
+                                continue;
                             }
-                            if(header.length != is.read(buffer, 0, header.length)) {
-                                break;
-                            }
-
-                            p = Parcel.obtain();
-                            p.unmarshall(buffer, 0, header.length);
-                            p.setDataPosition(0);
-
                             Log.v(HOOK_RIL_SERVICE_LOG_TAG, "Read packet: " + header.length + " bytes");
 
-                            RilCommand command = RilCommand.parseCommandFromParcel(header.functionId, header.command, header.tocken, p);
+                            RilCommand command = null;
+                            if(header.length == 0) {
+                                command = RilCommand.parseCommandFromBuffer(header.functionId, header.command, header.tocken, null);
+//                                command = RilCommand.createCommand(header.functionId, header.command, header.tocken);
+                            }
+                            else {
+                                readWithSize(readableChannel, header.length);
+                                byteBuffer.position(0);
+                                command = RilCommand.parseCommandFromBuffer(header.functionId, header.command, header.tocken, byteBuffer);
+                                byteBuffer.position(header.length);
+                                byteBuffer.compact();
+                            }
+
                             if(command != null) {
                                 commands.add(command);
+                                sendCommands();
                                 while(commands.size() > COMMAND_ARRAY_SIZE)
                                     commands.remove(0);
                             }
-                            p.recycle();
                         }
                     } catch (java.io.IOException ex) {
                         Log.i(HOOK_RIL_SERVICE_LOG_TAG, "Socket closed", ex);
@@ -178,23 +182,23 @@ public class Listner extends Service {
             worker = null;
         }
 
-        private void parseCommand(CommandHeader header, Parcel p) {
-            int type = p.readInt();
-        }
-
-        private CommandHeader readHeader(InputStream is) throws IOException {
-            int readlength = is.read(buffer, 0, 13);
-            if(readlength != 13)
-                throw new IOException();
+        private CommandHeader readHeader(ReadableByteChannel readableByteChannel) throws IOException {
+            readWithSize(readableByteChannel, 13);
 
             CommandHeader commandHeader = new CommandHeader();
-            byteBuffer.put(buffer, 0, readlength);
             byteBuffer.position(0);
             commandHeader.functionId = byteBuffer.get();
             commandHeader.command = byteBuffer.getInt();
             commandHeader.tocken = byteBuffer.getInt();
             commandHeader.length = byteBuffer.getInt();
+            byteBuffer.compact();
             return commandHeader;
+        }
+
+        private void readWithSize(ReadableByteChannel readableByteChannel, int length) throws IOException {
+            while(byteBuffer.position() < length)
+                readableByteChannel.read(byteBuffer);
+            byteBuffer.limit(byteBuffer.position());
         }
     }
 

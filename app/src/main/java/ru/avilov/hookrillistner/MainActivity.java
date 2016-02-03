@@ -6,13 +6,17 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.res.AssetManager;
 import android.os.Environment;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Message;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
+import android.widget.ArrayAdapter;
+import android.widget.ListView;
 import android.widget.Toast;
 
 import java.io.File;
@@ -31,15 +35,26 @@ public class MainActivity extends AppCompatActivity {
 
     private final static String TAG = MainActivity.class.getName();
 
+    ArrayAdapter<String> adapter;
+    Handler handler = new Handler() {
+        @Override
+        public void handleMessage(Message msg) {
+            RilCommand command = (RilCommand)msg.obj;
+            adapter.add(command.commandName);
+        }
+    };
+
     private ServiceConnection mConnection = new ServiceConnection() {
         public void onServiceConnected(ComponentName className,
                                        IBinder binder) {
             listner = ((Listner.LocalBinder)binder).getService();
             Toast.makeText(MainActivity.this, "Connected", Toast.LENGTH_SHORT)
                     .show();
+            listner.setHandler(handler);
         }
 
         public void onServiceDisconnected(ComponentName className) {
+            listner.setHandler(null);
             listner = null;
         }
     };
@@ -48,6 +63,10 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        adapter = new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1);
+        ListView list = (ListView)findViewById(R.id.listView);
+        list.setAdapter(adapter);
 
         File file = new File("/system/lib/libhookril.so");
         if(file.exists())
@@ -70,6 +89,8 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         startService(new Intent(this, Listner.class));
+
+
     }
 
     @Override
